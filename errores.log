@@ -32,3 +32,7 @@
 2026-09-08 11:56:45,649 - INFO - [base.py:61] - Descarga exitosa de https://www.argenprop.com/departamento-en-alquiler-en-las-canitas-1-ambiente--20370009
 2026-09-08 12:02:18,947 - INFO - [base.py:44] - Intentando descargar (Intento 1/2): https://www.argenprop.com/departamento-en-alquiler-en-las-canitas-1-ambiente--20370009
 2026-09-08 12:02:19,341 - INFO - [base.py:61] - Descarga exitosa de https://www.argenprop.com/departamento-en-alquiler-en-las-canitas-1-ambiente--20370009
+2026-09-08 12:05:54,210 - INFO - [base.py:44] - Intentando descargar (Intento 1/2): https://www.argenprop.com/departamento-en-alquiler-en-las-canitas-1-ambiente--20370009
+2026-09-08 12:05:54,311 - INFO - [base.py:61] - Descarga exitosa de https://www.argenprop.com/departamento-en-alquiler-en-las-canitas-1-ambiente--20370009
+2026-09-08 19:05:22,622 - INFO - [base.py:44] - Intentando descargar (Intento 1/2): https://www.argenprop.com/departamento-en-alquiler-en-caballito-3-ambientes--8308810
+2026-09-08 19:05:26,766 - INFO - [base.py:61] - Descarga exitosa de https://www.argenprop.com/departamento-en-alquiler-en-caballito-3-ambientes--8308810
