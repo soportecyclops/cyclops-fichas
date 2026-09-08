@@ -1,0 +1,144 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cyclops Fichas — Century 21</title>
+    <style>
+        :root { --brand: #BE9F56; --dark: #222222; --bg-main: #F4F5F7; --sidebar-bg: #FFFFFF; }
+        body { margin: 0; display: flex; height: 100vh; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; overflow: hidden; }
+        
+        /* Barra lateral mejorada y con scroll propio */
+        .sidebar { width: 340px; background-color: var(--sidebar-bg); padding: 25px; box-shadow: 2px 0 15px rgba(0,0,0,0.05); z-index: 10; display: flex; flex-direction: column; gap: 15px; overflow-y: auto; }
+        .preview-area { flex: 1; background-color: var(--bg-main); display: flex; justify-content: center; align-items: flex-start; padding: 20px; overflow-y: auto; overflow-x: hidden; }
+        
+        h1 { font-size: 1.2rem; color: var(--dark); margin: 0 0 10px 0; text-align: center; }
+        .form-group { display: flex; flex-direction: column; gap: 3px; }
+        label { font-size: 0.8rem; font-weight: 600; color: #555; }
+        input { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 0.9rem; }
+        button { width: 100%; padding: 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; transition: background-color 0.2s; }
+        .btn-primary { background-color: var(--dark); color: var(--brand); margin-top: 10px; }
+        .btn-primary:hover { background-color: #000; }
+        .btn-secondary { background-color: #e0e0e0; color: #333; margin-top: 10px; display: none; }
+        
+        #error { color: #d32f2f; font-size: 0.85rem; font-weight: bold; text-align: center; min-height: 20px; }
+        
+        /* Contenedor del Iframe (Ficha) ajustado para no generar scroll horizontal */
+        .iframe-container { width: 100%; max-width: 1200px; height: 100%; background: transparent; display: flex; flex-direction: column; }
+        iframe { width: 100%; height: 100%; min-height: 800px; border: none; background: #fff; box-shadow: 0 5px 20px rgba(0,0,0,0.05); border-radius: 8px; }
+        
+        .actions { margin-top: 15px; border-top: 1px solid #eee; padding-top: 15px; }
+        .share-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; display: none; }
+        .share-btn { display: flex; align-items: center; justify-content: center; padding: 10px; color: white; border-radius: 6px; font-size: 0.85rem; text-decoration: none; }
+        .share-btn.wpp { background-color: #25D366; }
+        .share-btn.tg { background-color: #0088cc; }
+        .share-btn.fb { background-color: #1877F2; }
+        .share-btn.copy { background-color: #666666; }
+    </style>
+</head>
+<body>
+    <aside class="sidebar">
+        <h1>Cyclops Fichas</h1>
+        
+        <div class="form-group">
+            <label>URL de la propiedad</label>
+            <input type="text" id="url" placeholder="https://www.zonaprop.com.ar/...">
+        </div>
+        
+        <hr style="border:0; border-top: 1px solid #eee; width: 100%; margin: 5px 0;">
+        
+        <div class="form-group"><label>Nombre del Asesor</label><input type="text" id="a_name" value="Juan Pérez"></div>
+        <div class="form-group"><label>Teléfono</label><input type="text" id="a_phone" value="+54 9 11 0000-0000"></div>
+        <div class="form-group"><label>WhatsApp (solo números)</label><input type="text" id="a_whatsapp" value="5491100000000"></div>
+        <div class="form-group"><label>Email</label><input type="text" id="a_email" value="agente@century21.com.ar"></div>
+        <div class="form-group"><label>Sucursal / Inmobiliaria</label><input type="text" id="a_agency" value="CENTURY 21"></div>
+        <div class="form-group"><label>Dirección</label><input type="text" id="a_address" value="Av. Siempre Viva 123"></div>
+        <div class="form-group"><label>Página Web</label><input type="text" id="a_web" value="www.century21.com.ar"></div>
+        <div class="form-group"><label>Redes Sociales</label><input type="text" id="a_social" value="@century21arg"></div>
+
+        <button class="btn-primary" onclick="generarFicha()">Generar Ficha</button>
+        <div id="error"></div>
+
+        <div class="actions">
+            <button id="btn-print" class="btn-secondary" onclick="imprimirPDF()">Descargar PDF</button>
+            <div id="share-panel" class="share-grid">
+                <a href="#" id="share-wpp" class="share-btn wpp" target="_blank">WhatsApp</a>
+                <a href="#" id="share-tg" class="share-btn tg" target="_blank">Telegram</a>
+                <a href="#" id="share-fb" class="share-btn fb" target="_blank">Facebook</a>
+                <a href="#" id="share-copy" class="share-btn copy" onclick="copiarEnlace(event)">Copiar Link</a>
+            </div>
+        </div>
+    </aside>
+
+    <main class="preview-area">
+        <div class="iframe-container" id="resultado"></div>
+    </main>
+
+    <script>
+        let currentUrl = '';
+
+        async function generarFicha() {
+            const url = document.getElementById('url').value.trim();
+            const errorBox = document.getElementById('error');
+            const resultado = document.getElementById('resultado');
+            
+            errorBox.textContent = '';
+            resultado.innerHTML = '';
+            document.getElementById('btn-print').style.display = 'none';
+            document.getElementById('share-panel').style.display = 'none';
+            
+            if (!url) { errorBox.textContent = 'Pegá un link válido.'; return; }
+            
+            const agentData = {
+                name: document.getElementById('a_name').value.trim(),
+                phone: document.getElementById('a_phone').value.trim(),
+                whatsapp: document.getElementById('a_whatsapp').value.trim(),
+                email: document.getElementById('a_email').value.trim(),
+                agency_name: document.getElementById('a_agency').value.trim(),
+                address: document.getElementById('a_address').value.trim(),
+                website: document.getElementById('a_web').value.trim(),
+                social_media: document.getElementById('a_social').value.trim()
+            };
+            
+            try {
+                const resp = await fetch('/api/fichas', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({url: url, agent: agentData})
+                });
+                
+                const data = await resp.json();
+                
+                if (!resp.ok) { errorBox.textContent = data.detail || 'No se pudo generar.'; return; }
+                
+                const iframe = document.createElement('iframe');
+                iframe.id = 'ficha-iframe';
+                resultado.appendChild(iframe);
+                iframe.srcdoc = data.html;
+                
+                currentUrl = url;
+                const encodedUrl = encodeURIComponent(currentUrl);
+                document.getElementById('share-wpp').href = `https://api.whatsapp.com/send?text=Mirá%20esta%20propiedad:%20${encodedUrl}`;
+                document.getElementById('share-tg').href = `https://t.me/share/url?url=${encodedUrl}&text=Mirá%20esta%20propiedad`;
+                document.getElementById('share-fb').href = `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`;
+                
+                document.getElementById('btn-print').style.display = 'block';
+                document.getElementById('share-panel').style.display = 'grid';
+            } catch (e) {
+                errorBox.textContent = 'Error de red: ' + e.message;
+            }
+        }
+
+        function imprimirPDF() {
+            const iframe = document.getElementById('ficha-iframe');
+            if (iframe) iframe.contentWindow.print();
+        }
+
+        function copiarEnlace(e) {
+            e.preventDefault();
+            navigator.clipboard.writeText(currentUrl);
+            alert('¡Enlace original copiado al portapapeles!');
+        }
+    </script>
+</body>
+</html>

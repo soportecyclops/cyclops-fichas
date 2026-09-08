@@ -1,0 +1,122 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ p.title or "Propiedad" }} · {{ agent.agency_name }}</title>
+    <link rel="stylesheet" href="/static/century21.css">
+</head>
+<body>
+    <header class="top-bar">
+        <div class="container header-content">
+            {% if agent.logo_url %}
+                <img class="logo" src="{{ agent.logo_url }}" alt="{{ agent.agency_name }}">
+            {% else %}
+                <span class="agency-name">{{ agent.agency_name }}</span>
+            {% endif %}
+            <div class="header-contact">Contacto: {{ agent.phone }}</div>
+        </div>
+    </header>
+
+    <div class="container main-layout">
+        <main class="property-content">
+            {% if p.images %}
+            <div class="gallery">
+                <div class="main-photo">
+                    <img src="{{ p.images[0] }}" alt="Foto principal">
+                    <span class="badge-operation">{{ p.operation or "Oferta" }}</span>
+                </div>
+                <div class="thumb-grid">
+                    {% for img in p.images[1:5] %}
+                        <img src="{{ img }}" alt="Foto secundaria">
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="property-header">
+                <h1 class="title">{{ p.title or "Propiedad en " + (p.operation or "oferta") }}</h1>
+                {% if p.location.neighborhood or p.location.city or p.location.address %}
+                <p class="location">
+                    <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8 0a5.53 5.53 0 0 0-5.5 5.5c0 3.09 4.3 9.42 5.1 10.45.2.25.6.25.8 0 .8-1.03 5.1-7.36 5.1-10.45A5.53 5.53 0 0 0 8 0zm0 8a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/></svg>
+                    {{ p.location.address ~ ", " if p.location.address else "" }}{{ p.location.neighborhood }}{% if p.location.neighborhood and p.location.city %}, {% endif %}{{ p.location.city }}
+                </p>
+                {% endif %}
+                {% if p.price %}
+                <div class="price">{{ p.currency or "" }} {{ "{:,.0f}".format(p.price).replace(',', '.') }}</div>
+                {% endif %}
+            </div>
+
+            <div class="specs-bar">
+                {% if p.area_total %}<div class="spec-item"><span>Superficie Total</span><strong>{{ p.area_total }} m²</strong></div>{% endif %}
+                {% if p.area_covered %}<div class="spec-item"><span>Superficie Cubierta</span><strong>{{ p.area_covered }} m²</strong></div>{% endif %}
+                {% if p.rooms %}<div class="spec-item"><span>Ambientes</span><strong>{{ p.rooms }}</strong></div>{% endif %}
+                {% if p.bedrooms %}<div class="spec-item"><span>Dormitorios</span><strong>{{ p.bedrooms }}</strong></div>{% endif %}
+                {% if p.bathrooms %}<div class="spec-item"><span>Baños</span><strong>{{ p.bathrooms }}</strong></div>{% endif %}
+            </div>
+
+            {% if p.description %}
+            <section class="section">
+                <h2>Descripción</h2>
+                <div class="description-text">{{ p.description | safe }}</div>
+            </section>
+            {% endif %}
+
+            <!-- Categorías de Características Organizadas -->
+            {% if p.feature_categories %}
+                {% for cat in p.feature_categories %}
+                <section class="section">
+                    <h2>{{ cat.title }}</h2>
+                    <ul class="features-list">
+                        {% for item in cat.items %}
+                            <li>✔ {{ item }}</li>
+                        {% endfor %}
+                    </ul>
+                </section>
+                {% endfor %}
+            {% elif p.features %}
+                <section class="section">
+                    <h2>Características</h2>
+                    <ul class="features-list">
+                        {% for feature in p.features %}
+                            <li>✔ {{ feature }}</li>
+                        {% endfor %}
+                    </ul>
+                </section>
+            {% endif %}
+        </main>
+
+        <aside class="sidebar-ficha">
+            <div class="agent-card">
+                <h3>¿Necesitas más información?</h3>
+                <div class="agent-profile">
+                    {% if agent.photo_url %}
+                        <img class="agent-photo" src="{{ agent.photo_url }}" alt="{{ agent.name }}">
+                    {% endif %}
+                    <div class="agent-info">
+                        <strong>{{ agent.name }}</strong>
+                        <span>{{ agent.agency_name }}</span>
+                    </div>
+                </div>
+                
+                <div class="agent-extra">
+                    {% if agent.email %}<p><strong>Email:</strong> {{ agent.email }}</p>{% endif %}
+                    {% if agent.address %}<p><strong>Dirección:</strong> {{ agent.address }}</p>{% endif %}
+                    {% if agent.website %}<p><strong>Web:</strong> {{ agent.website }}</p>{% endif %}
+                    {% if agent.social_media %}<p><strong>Redes:</strong> {{ agent.social_media }}</p>{% endif %}
+                </div>
+                
+                <a class="btn btn-whatsapp" href="https://wa.me/{{ agent.whatsapp }}?text=Hola,%20me%20interesa%20esta%20propiedad:%20{{ p.title }}" target="_blank">Contactar por WhatsApp</a>
+                <a class="btn btn-outline" href="mailto:{{ agent.email }}">Enviar Email</a>
+
+                <div class="adherido">
+                    <small>Adherido al sistema</small><br>
+                    {% if agent.logo_url %}
+                        <img src="{{ agent.logo_url }}" alt="Century 21" style="max-width: 150px; margin-top: 10px;">
+                    {% endif %}
+                </div>
+            </div>
+        </aside>
+    </div>
+</body>
+</html>
