@@ -20,16 +20,12 @@
 
     <div class="container main-layout">
         <main class="property-content">
+            <!-- Portada Principal -->
             {% if p.images %}
             <div class="gallery">
                 <div class="main-photo">
                     <img src="{{ p.images[0] }}" alt="Foto principal">
                     <span class="badge-operation">{{ p.operation or "Oferta" }}</span>
-                </div>
-                <div class="thumb-grid">
-                    {% for img in p.images[1:5] %}
-                        <img src="{{ img }}" alt="Foto secundaria">
-                    {% endfor %}
                 </div>
             </div>
             {% endif %}
@@ -38,7 +34,7 @@
                 <h1 class="title">{{ p.title or "Propiedad en " + (p.operation or "oferta") }}</h1>
                 {% if p.location.neighborhood or p.location.city or p.location.address %}
                 <p class="location">
-                    <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8 0a5.53 5.53 0 0 0-5.5 5.5c0 3.09 4.3 9.42 5.1 10.45.2.25.6.25.8 0 .8-1.03 5.1-7.36 5.1-10.45A5.53 5.53 0 0 0 8 0zm0 8a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/></svg>
+                    <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16" style="vertical-align: middle; margin-right: 5px;"><path d="M8 0a5.53 5.53 0 0 0-5.5 5.5c0 3.09 4.3 9.42 5.1 10.45.2.25.6.25.8 0 .8-1.03 5.1-7.36 5.1-10.45A5.53 5.53 0 0 0 8 0zm0 8a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/></svg>
                     {{ p.location.address ~ ", " if p.location.address else "" }}{{ p.location.neighborhood }}{% if p.location.neighborhood and p.location.city %}, {% endif %}{{ p.location.city }}
                 </p>
                 {% endif %}
@@ -62,7 +58,6 @@
             </section>
             {% endif %}
 
-            <!-- Categorías de Características Organizadas -->
             {% if p.feature_categories %}
                 {% for cat in p.feature_categories %}
                 <section class="section">
@@ -83,6 +78,18 @@
                         {% endfor %}
                     </ul>
                 </section>
+            {% endif %}
+
+            <!-- Galería de Fotos Completa (Anexo) -->
+            {% if p.images|length > 1 %}
+            <section class="section print-gallery">
+                <h2>Galería Completa ({{ p.images|length }} fotos)</h2>
+                <div class="full-grid">
+                    {% for img in p.images[1:] %}
+                        <img src="{{ img }}" alt="Foto secundaria">
+                    {% endfor %}
+                </div>
+            </section>
             {% endif %}
         </main>
 
