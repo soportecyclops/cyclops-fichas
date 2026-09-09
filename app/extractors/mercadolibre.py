@@ -1,4 +1,4 @@
-﻿"""Extractor dedicado MercadoLibre con agrupación de características y escudo anti-IA."""
+﻿"""Extractor avanzado MercadoLibre mediante NORDIC JSON y fallback HTML."""
 from __future__ import annotations
 
 import logging
@@ -33,6 +33,18 @@ def _sanitize_text(raw: str | None, publisher_name: str | None) -> str | None:
 
     return re.sub(r"\n{3,}", "\n\n", text).strip() or None
 
+def _find_components_by_type(node, type_name):
+    """Busca recursivamente dentro del JSON de MercadoLibre."""
+    results = []
+    if isinstance(node, dict):
+        if node.get("type") == type_name:
+            results.append(node)
+        for v in node.values():
+            results.extend(_find_components_by_type(v, type_name))
+    elif isinstance(node, list):
+        for item in node:
+            results.extend(_find_components_by_type(item, type_name))
+    return results
 
 class MercadoLibreExtractor(BaseExtractor):
     portal_name = "mercadolibre"
@@ -40,107 +52,128 @@ class MercadoLibreExtractor(BaseExtractor):
     def parse(self, html: str, url: str) -> Property:
         soup = BeautifulSoup(html, 'html.parser')
         prop = Property(source=SourceInfo(url=url, portal="mercadolibre"))
-
-        # 1. Publicador
-        seller_node = soup.find('div', class_='ui-vip-profile-info__info-link')
-        agency_name = seller_node.find('h3').get_text(strip=True) if seller_node and seller_node.find('h3') else None
-
-        # 2. Descripción
-        desc_node = soup.find('p', class_='ui-pdp-description__content')
-        prop.description = _sanitize_text(desc_node.get_text(separator="\n") if desc_node else None, agency_name)
-
-        # 3. Título
-        title_node = soup.find('h1', class_='ui-pdp-title')
-        prop.title = title_node.get_text(strip=True) if title_node else "Propiedad en MercadoLibre"
-
-        # 4. Precio y Moneda
-        price_container = soup.find('div', class_='ui-pdp-price__second-line')
-        if price_container:
-            frac = price_container.find('span', class_='andes-money-amount__fraction')
-            if frac:
-                try: prop.price = float(frac.get_text(strip=True).replace('.', '').replace(',', '.'))
-                except ValueError: pass
-            
-            curr = price_container.find('span', class_='andes-money-amount__currency-symbol')
-            if curr:
-                val = curr.get_text(strip=True).upper()
-                prop.currency = "USD" if "U" in val or "S$" in val else "ARS"
-
-        # 5. Ubicación
-        loc_node = soup.find('p', class_='ui-pdp-media__title') or soup.find('a', class_='ui-pdp-seller-validated__title')
-        if loc_node:
-            parts = [p.strip() for p in loc_node.get_text(strip=True).split(',')]
-            prop.location.address = parts[0] if parts else ""
-            if len(parts) > 1: prop.location.neighborhood = parts[1]
-            if len(parts) > 2: prop.location.city = parts[2]
-
-        # 6. Características Estructuradas
-        categories: list[FeatureCategory] = []
-        features_list = []
         
-        tables = soup.find_all('div', class_='ui-vpp-striped-specs__table')
-        for table in tables:
-            header = table.find('h3', class_='ui-vpp-striped-specs__header')
-            cat_title = header.get_text(strip=True) if header else "General"
-            items = []
-            
-            for row in table.find_all('tr', class_='ui-vpp-striped-specs__row'):
-                th = row.find('th')
-                td = row.find('td')
-                if th and td:
-                    k = th.get_text(strip=True)
-                    v = td.get_text(strip=True)
-                    item_str = f"{k}: {v}"
-                    item_clean = _sanitize_text(item_str, agency_name)
-                    
-                    if item_clean and item_clean not in items:
-                        items.append(item_clean)
-                        features_list.append(item_clean)
-                        
-                        k_low = k.lower()
-                        if 'superficie cubierta' in k_low:
-                            m = re.search(r'([\d\.]+)', v)
-                            if m:
-                                try: prop.area_covered = float(m.group(1).replace('.', ''))
-                                except ValueError: pass
-                        elif 'superficie total' in k_low:
-                            m = re.search(r'([\d\.]+)', v)
-                            if m:
-                                try: prop.area_total = float(m.group(1).replace('.', ''))
-                                except ValueError: pass
-                        elif 'dormitorios' in k_low:
-                            m = re.search(r'\d+', v)
-                            if m: prop.bedrooms = int(m.group(0))
-                        elif 'baños' in k_low:
-                            m = re.search(r'\d+', v)
-                            if m: prop.bathrooms = int(m.group(0))
-                        elif 'ambientes' in k_low:
-                            m = re.search(r'\d+', v)
-                            if m: prop.rooms = int(m.group(0))
-                        elif 'expensas' in k_low:
-                            m = re.search(r'([\d\.]+)', v)
-                            if m:
-                                try: prop.expenses = float(m.group(1).replace('.', ''))
-                                except ValueError: pass
-                        elif 'tipo de casa' in k_low or 'tipo de unidad' in k_low:
-                            prop.type = v
-
-            if items:
-                categories.append(FeatureCategory(title=cat_title, items=items))
-
-        prop.feature_categories = categories
-        prop.features = features_list
-
-        # 7. Imágenes
-        images = []
-        for figure in soup.find_all('figure', class_='gallery-image'):
-            img = figure.find('img')
-            if img:
-                src = img.get('src') or img.get('data-src')
-                if src and 'data:image' not in src:
-                    images.append(src)
+        agency_name = None
+        json_data = {}
         
-        prop.images = list(dict.fromkeys(images))
+        # --- 1. INTENTAR PARSEO NORDIC (DATOS JSON OCULTOS) ---
+        match = re.search(r'<script id="__NORDIC_RENDERING_CTX__"[^>]*>_n\.ctx\.r\s*=\s*(\{.*?\});?</script>', html, re.DOTALL)
+        if match:
+            import chompjs
+            try:
+                json_data = chompjs.parse_js_object(match.group(1))
+            except Exception as e:
+                logger.error(f"Error parseando NORDIC JSON: {e}")
+
+        if json_data:
+            initial_state = json_data.get('appProps', {}).get('pageProps', {}).get('initialState', {})
+            components_dict = initial_state.get('components', {})
+
+            # A. Extraer Inmobiliaria para Sanitizar
+            sellers = _find_components_by_type(components_dict, "seller_profile")
+            if sellers:
+                agency_name = sellers[0].get("seller_name", {}).get("title", {}).get("text")
+                
+            # B. Extraer Descripción
+            descs = _find_components_by_type(components_dict, "description")
+            if descs:
+                prop.description = _sanitize_text(descs[0].get("content"), agency_name)
+                
+            # C. Extraer Título
+            headers = _find_components_by_type(components_dict, "header")
+            if headers:
+                prop.title = headers[0].get("title")
+                
+            # D. Extraer Precio
+            prices = _find_components_by_type(components_dict, "price")
+            if prices:
+                p_data = prices[0].get("price", {})
+                prop.price = p_data.get("value")
+                prop.currency = p_data.get("currency_id")
+                
+            # E. Extraer Ubicación
+            locations = _find_components_by_type(components_dict, "location_and_points")
+            if locations:
+                loc = locations[0]
+                prop.location.address = loc.get("item_address")
+                prop.location.city = loc.get("item_location")
+
+            # F. Extraer Características Exactas por Tablas
+            tech_specs = _find_components_by_type(components_dict, "technical_specifications")
+            categories = []
+            features_list = []
+            if tech_specs:
+                for spec in tech_specs[0].get("specs", []):
+                    cat_title = spec.get("title", "Características")
+                    items = []
+                    for attr in spec.get("attributes", []):
+                        k = attr.get("id", "")
+                        v = attr.get("text", "")
+                        item_str = f"{k}: {v}"
+                        item_clean = _sanitize_text(item_str, agency_name)
+                        if item_clean:
+                            items.append(item_clean)
+                            features_list.append(item_clean)
+                            
+                            k_low = k.lower()
+                            if 'superficie cubierta' in k_low:
+                                try: prop.area_covered = float(v.replace('m²', '').replace('m2', '').replace('.', '').strip())
+                                except ValueError: pass
+                            elif 'superficie total' in k_low:
+                                try: prop.area_total = float(v.replace('m²', '').replace('m2', '').replace('.', '').strip())
+                                except ValueError: pass
+                            elif 'dormitorios' in k_low:
+                                try: prop.bedrooms = int(v)
+                                except ValueError: pass
+                            elif 'baños' in k_low:
+                                try: prop.bathrooms = int(v)
+                                except ValueError: pass
+                            elif 'ambientes' in k_low:
+                                try: prop.rooms = int(v)
+                                except ValueError: pass
+                            elif 'expensas' in k_low:
+                                m = re.search(r'([\d\.]+)', v)
+                                if m:
+                                    try: prop.expenses = float(m.group(1).replace('.', ''))
+                                    except ValueError: pass
+                            elif 'tipo de departamento' in k_low or 'tipo de casa' in k_low:
+                                prop.type = v
+
+                    if items:
+                        categories.append(FeatureCategory(title=cat_title, items=items))
+            prop.feature_categories = categories
+            prop.features = list(dict.fromkeys(features_list))
+
+            # G. Extraer Fotos Reales en Alta Resolución
+            galleries = _find_components_by_type(components_dict, "gallery_mosaic")
+            images = []
+            if galleries:
+                gal = galleries[0]
+                primary = gal.get("primary", {}).get("src")
+                if primary: images.append(primary)
+                for sec in gal.get("secondary", []):
+                    src = sec.get("src")
+                    if src: images.append(src)
+            prop.images = list(dict.fromkeys(images))
+
+        # --- 2. FALLBACK HTML (Por si el aviso es muy antiguo) ---
+        if not prop.title:
+            title_node = soup.find('h1', class_='ui-pdp-title')
+            if title_node: prop.title = title_node.get_text(strip=True)
+            
+        if not prop.description:
+            desc_node = soup.find('p', class_='ui-pdp-description__content')
+            if desc_node: prop.description = _sanitize_text(desc_node.get_text(separator="\n"), agency_name)
+            
+        if not prop.images:
+            images = []
+            for figure in soup.find_all('figure', class_='gallery-image'):
+                img = figure.find('img')
+                if img:
+                    src = img.get('src') or img.get('data-src')
+                    if src and 'data:image' not in src:
+                        images.append(src)
+            prop.images = list(dict.fromkeys(images))
 
         if not prop.is_usable():
             raise ExtractionError(f"El aviso de {url} no tiene datos suficientes.")
