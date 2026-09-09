@@ -57,11 +57,18 @@ class MercadoLibreExtractor(BaseExtractor):
         json_data = {}
         
         # --- 1. INTENTAR PARSEO NORDIC (DATOS JSON OCULTOS) ---
-        match = re.search(r'<script id="__NORDIC_RENDERING_CTX__"[^>]*>_n\.ctx\.r\s*=\s*(\{.*?\});?</script>', html, re.DOTALL)
-        if match:
+        script_match = re.search(r'<script id="__NORDIC_RENDERING_CTX__"[^>]*>(.*?)</script>', html, re.DOTALL)
+        if script_match:
+            js_code = script_match.group(1)
+            # Aislamos solo el primer objeto descartando basura extra de JS
+            obj_str = js_code.split(';_n.ctx.r')[0]
+            obj_str = re.sub(r'^_n\.ctx\.r\s*=\s*', '', obj_str).strip()
+            if obj_str.endswith(';'):
+                obj_str = obj_str[:-1]
+                
             import chompjs
             try:
-                json_data = chompjs.parse_js_object(match.group(1))
+                json_data = chompjs.parse_js_object(obj_str)
             except Exception as e:
                 logger.error(f"Error parseando NORDIC JSON: {e}")
 
@@ -144,7 +151,7 @@ class MercadoLibreExtractor(BaseExtractor):
             prop.feature_categories = categories
             prop.features = list(dict.fromkeys(features_list))
 
-            # G. Extraer Fotos Reales en Alta Resolución
+            # G. Extraer Fotos
             galleries = _find_components_by_type(components_dict, "gallery_mosaic")
             images = []
             if galleries:
